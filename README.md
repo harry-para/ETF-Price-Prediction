@@ -6,4 +6,5 @@ The purpose of this project was to use the existing time series data to predict 
 This analysis did a 70% training data and 30% testing data split using an ARIMA model for price prediction.
 Forecast error statistics were also calculated to compare the model to the actual prices.
 
-The R script and output using Jupyter Notebooks via the Visual Studio Code editor is attached above as "ETF Price Prediction.Rmd".
+The R script using the RStudio editor is attached above as "ETF Price Prediction.Rmd".
+To see the R script along with the output please click the link: file:///C:/Users/Vijaya/Documents/Python%20Projects/ETF%20Price%20Prediction/ETF-Price-Prediction.html
