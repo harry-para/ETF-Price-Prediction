@@ -1,0 +1,239 @@
+---
+title: "ETF Price Prediction"
+author: "Harry"
+date: "15/05/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+```{r}
+### ETF Price Predictor
+
+  # Clear all
+    rm(list=ls())
+
+    library(tinytex)
+
+    library(tidyverse)
+    library(tidyquant)
+    library(ggplot2)
+    
+  # Computes current date  
+    today <- Sys.Date()
+    format(today, format="%B %d %Y")
+    
+  # Function that finds and scrapes data; source is Yahoo Finance
+    GetMySymbols <- function(x) {getSymbols(x,
+                                            src = "yahoo", # source is yahoo finance
+                                            from = "2015-01-01",
+                                            to = today, # Inputs current date
+                                            auto.assign = FALSE)}
+    
+###########################################################################################################
+    
+## ETF Data Collection
+    
+  # Selects tickers to search, example shown is Amplify Online Retail ETF
+    tickers <- c("SPY")
+    prices_adj <- map(tickers, GetMySymbols)
+    
+  # Shows historical data  
+    head(prices_adj[[1]])
+    
+  # Shows all historical values  
+    prices_adj
+    
+  # Indicates object class, this is a list  
+    class(prices_adj)
+    
+  # Converts to data to dataframe  
+    data<-as.data.frame(prices_adj)
+    
+    class(data)
+    
+  # Outputs dataframe  
+    View(data)
+    
+  # Changes column name  
+    names(data)[6] <- "Adjusted_Price"
+    
+    head(data)
+    summary(data)
+    str(data)
+    
+  # Dimensions of dataframe; rows by columns - rows would be number of historical prices  
+    dim(data)
+    
+############################################################################################################
+
+## Partitioning Data
+
+  # Dividing data into training and testing sets using a 70/30 split
+  # Random sampling 
+    samplesize = 0.70*nrow(data)
+    set.seed(100)
+    index = sample(seq_len(nrow(data)), size = samplesize)
+    
+  # Creating training and test set 
+    train = data[index,]
+    test = data[-index,]
+    
+    summary(train)
+    summary(test)
+
+###########################################################################################################
+
+## Training Set Evaluation
+    
+  # Load Libraries
+    library(MASS)
+    library(tseries)
+    library(forecast)
+
+  # Plot and convert to ln format; range represents how many rows/data points used
+  # lnetf will be training data to build ARIMA model; training set is defined using below range
+    lnetf=log(train$Adjusted_Price)
+    lnetf
+
+  # ACF (autocorrelation function) -> # of MA (Moving Average), PACF (partial autocorrelation function) -> # of AR (Autoregressive)
+    acf(lnetf, lag.max=25)
+    pacf(lnetf, lag.max=25)
+  # Differences lnetf; 1 represents number of lags
+    difflnetf=diff(lnetf,1)
+    difflnetf
+    
+  # Dickey-Fuller Test for stationarity, null is time series data is non-stationary
+    # Should fail to reject null
+      adf.test(lnetf)
+    # Should reject null as differencing should make date stationary i.e. small p-value
+      adf.test(difflnetf)
+
+###########################################################################################################
+    
+## ARIMA model using Training Set
+      
+    # To convert daily data to time series data
+      library(zoo)
+      pricearima <- zoo(lnetf, seq(from = as.Date("2015-01-01"), to = as.Date(today), by = 1))
+      pricearima
+  
+    # ARIMA (0,1,0) is fine
+      fitlnetf<-auto.arima(pricearima)
+      fitlnetf
+      
+      plot(pricearima, type='l')
+      
+    # Adds title to plot
+      title('ETF Price')
+      
+    # Changes values from ln values to normal price values
+      exp(lnetf)
+      
+###########################################################################################################
+      
+## Forecasted Values from ARIMA model using Test Set
+      
+    # To count number of days to forecast based on number of days in testing set
+      count = sum(complete.cases(test))
+      count
+      
+    # h represented number of periods to forecast -> i.e. h=7 would be 7 days
+      forecasted_values_ln=forecast(fitlnetf,h=count)
+      forecasted_values_ln
+      plot(forecasted_values_ln)
+      
+      forecasted_values_extracted = as.numeric(forecasted_values_ln$mean)
+    
+    # Changes values for ln values to normal price values
+      final_forecasted_values=exp(forecasted_values_extracted)
+      final_forecasted_values
+      plot(final_forecasted_values)
+      
+###########################################################################################################
+      
+## Percentage Forecast Error
+      
+    # Calculating forecast error for remainder of observations or data points (i.e. testing dataset)
+    # Comparing actual value and forecasted values
+      df<-data.frame(test$Adjusted_Price, final_forecasted_values)
+    
+    # Names columns of dataframe
+      col_headings<-c("Actual Price", "Forecasted Price")
+      names(df)<-col_headings
+      
+      attach(df)
+      
+      percentage_error=((df$`Actual Price`-df$`Forecasted Price`)/(df$`Actual Price`))
+      percentage_error
+      mean(percentage_error)
+
+      
+      
+    # Final dataframe to combine Actual Price, Forecasted Price and Forecast Error
+      final_df<-data.frame(df$`Actual Price`, df$`Forecasted Price`, percentage_error)
+      
+    # Names columns of final dataframe
+      col_headings2<-c("Actual Price", "Forecasted Price", "Forecast Error")
+      names(final_df)<-col_headings2
+      
+      attach(final_df)
+      
+    # Table of actual values and forecasted values
+      View(final_df)
+      
+  ## Ljung-Box to see if residuals are random; null hypothesis indicates that residuals are random
+    # If residuals are random, they should not be correlated, correlation is not good for time series
+    # Tested by increasing number of lags to test for serial correlation, lag values are arbitrary (any # can be chosen)
+      Box.test(fitlnetf$resid, lag=5, type="Ljung-Box")
+      Box.test(fitlnetf$resid, lag=10, type="Ljung-Box")
+      Box.test(fitlnetf$resid, lag=15, type="Ljung-Box")
+      
+###########################################################################################################
+
+## Forecasted Values from ARIMA model using out-of-sample forecasting
+      
+  # To count number of days to forecast based on number of days in dataset
+    count = sum(complete.cases(data))
+    count
+      
+  # Using all historical values    
+    lnetf2=log(data$Adjusted_Price)
+    lnetf2
+
+    ## ARIMA model
+    
+      # To convert daily data to time series data
+        library(zoo)
+        pricearima <- zoo(lnetf2, seq(from = as.Date("2015-01-01"), to = as.Date(today), by = 1))
+        pricearima
+      
+      # ARIMA (0,1,0) is still fine
+        fitlnetf2<-auto.arima(pricearima)
+        fitlnetf2
+        
+        plot(pricearima, type='l')
+        
+      # Adds title to plot
+        title('ETF Price')
+      
+      # Changes values from ln values to normal price values
+        exp(lnetf2)
+    
+###########################################################################################################
+    
+## Forecasted Values from ARIMA model
+
+  # h represented number of periods to forecast -> i.e. h=7 would be 7 days
+    forecasted_values_ln=forecast(fitlnetf2,h=7)
+    forecasted_values_ln
+    
+    forecasted_values_extracted = as.numeric(forecasted_values_ln$mean)
+    
+  # Changes values for ln values to normal price values
+    final_forecasted_values=exp(forecasted_values_extracted)
+  # Forecasted values
+    final_forecasted_values 
+    plot(final_forecasted_values)
+
+```
+
