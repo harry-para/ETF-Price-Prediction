@@ -10,3 +10,5 @@ The ARIMA model was also used to forecast the ETF price for the next couple days
 
 The R script using the RStudio editor is attached above as "ETF Price Prediction.Rmd".
 To see the R script along with the output please click the link: file:///C:/Users/Vijaya/Documents/Python%20Projects/ETF%20Price%20Prediction/ETF-Price-Prediction.html
+
+R packages used include tidyverse, tidyquant, ggplot2, MASS, tseries, forecast and zoo. 
